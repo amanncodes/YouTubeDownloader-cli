@@ -12,15 +12,12 @@ app = typer.Typer(
     help="YouTubeDownloader-cli – download YouTube videos via JSON file or direct URL"
 )
 
-# ==========================================================
 # GLOBALS
-# ==========================================================
 _progress_lock = Lock()
 
 
-# ==========================================================
 # TEXT SANITIZATION (WINDOWS SAFE)
-# ==========================================================
+
 def safe_text(text: str) -> str:
     """
     Convert text to ASCII-safe output for Windows terminals and filesystems.
@@ -29,9 +26,8 @@ def safe_text(text: str) -> str:
     return text.encode("ascii", errors="replace").decode("ascii")
 
 
-# ==========================================================
+
 # PROGRESS CALLBACK (ASCII ONLY)
-# ==========================================================
 def progress_callback(stream, chunk, bytes_remaining):
     with _progress_lock:
         total = stream.filesize
@@ -48,9 +44,7 @@ def progress_callback(stream, chunk, bytes_remaining):
         sys.stdout.flush()
 
 
-# ==========================================================
 # DOWNLOAD SINGLE VIDEO (HARDENED)
-# ==========================================================
 def download_video(url: str, output_dir: Path):
     print("\n> Initializing video")
 
@@ -99,9 +93,7 @@ def download_video(url: str, output_dir: Path):
     print("Saved to:", Path(result["path"]).resolve())
 
 
-# ==========================================================
 # INPUT RESOLUTION
-# ==========================================================
 def resolve_input(arg: str) -> List[str]:
     """
     If arg is a file path, treat it as JSON input.
@@ -126,9 +118,7 @@ def resolve_input(arg: str) -> List[str]:
     return [arg]
 
 
-# ==========================================================
 # CLI ENTRYPOINT
-# ==========================================================
 @app.command()
 def main(
     input_arg: str = typer.Argument(

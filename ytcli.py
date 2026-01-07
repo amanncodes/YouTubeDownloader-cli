@@ -11,15 +11,11 @@ app = typer.Typer(
     help="ytcli – YouTube video downloader (single-video links only)"
 )
 
-# ==========================================================
 # GLOBALS
-# ==========================================================
 _progress_lock = Lock()
 
 
-# ==========================================================
 # PROGRESS CALLBACK (SAFE & SIMPLE)
-# ==========================================================
 def progress_callback(stream, chunk, bytes_remaining):
     with _progress_lock:
         total = stream.filesize
@@ -36,9 +32,7 @@ def progress_callback(stream, chunk, bytes_remaining):
         sys.stdout.flush()
 
 
-# ==========================================================
 # DOWNLOAD A SINGLE VIDEO
-# ==========================================================
 def download_video(url: str, output_dir: Path):
     print("\n▶ Initializing video")
 
@@ -76,9 +70,7 @@ def download_video(url: str, output_dir: Path):
     print(f"✔ Saved to: {Path(result['path']).resolve()}")
 
 
-# ==========================================================
 # CLI
-# ==========================================================
 @app.command()
 def run(
     input_file: Path = typer.Argument(

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>YouTubeDownloader Demo</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f7f8fa;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 60px auto;
+      padding: 40px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 14px;
+      font-size: 16px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+
+    button {
+      padding: 14px 22px;
+      font-size: 16px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1e4ed8;
+    }
+
+    .file {
+      margin-top: 14px;
+    }
+
+    .result {
+      margin-top: 30px;
+      padding: 16px;
+      background: #0f172a;
+      color: #22c55e;
+      border-radius: 8px;
+      height: 260px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Youtube Video Downloader</h1>
+    <div class="subtitle">
+      A simple YouTube video downloader demo
+    </div>
+
+    <div class="input-row">
+      <input
+        id="url"
+        type="text"
+        placeholder="Paste a YouTube video URL here…"
+      />
+      <button id="download">Fetch</button>
+    </div>
+
+    <div class="file">
+      <input type="file" id="file" />
+    </div>
+
+    <div id="output" class="result">
+Waiting…
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

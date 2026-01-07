@@ -2,8 +2,8 @@ import json
 import sys
 import threading
 from pathlib import Path
-from threading import Lock
 from typing import List
+from threading import Lock
 
 import typer
 from pytubefix import YouTube
@@ -19,7 +19,18 @@ _progress_lock = Lock()
 
 
 # ==========================================================
-# PROGRESS CALLBACK
+# TEXT SANITIZATION (WINDOWS SAFE)
+# ==========================================================
+def safe_text(text: str) -> str:
+    """
+    Convert text to ASCII-safe output for Windows terminals and filesystems.
+    Unsupported characters are replaced with '?'.
+    """
+    return text.encode("ascii", errors="replace").decode("ascii")
+
+
+# ==========================================================
+# PROGRESS CALLBACK (ASCII ONLY)
 # ==========================================================
 def progress_callback(stream, chunk, bytes_remaining):
     with _progress_lock:
@@ -38,17 +49,19 @@ def progress_callback(stream, chunk, bytes_remaining):
 
 
 # ==========================================================
-# DOWNLOAD SINGLE VIDEO
+# DOWNLOAD SINGLE VIDEO (HARDENED)
 # ==========================================================
 def download_video(url: str, output_dir: Path):
-    print("\n▶ Initializing video")
+    print("\n> Initializing video")
 
     yt = YouTube(url, on_progress_callback=progress_callback)
 
+    # Fail fast on live / upcoming streams
     if yt.vid_info.get("videoDetails", {}).get("isLive"):
         raise RuntimeError("Live or upcoming video")
 
-    print(f"▶ Title: {yt.title}")
+    safe_title = safe_text(yt.title)
+    print("> Title:", safe_title)
 
     stream = yt.streams.filter(
         progressive=True, file_extension="mp4"
@@ -64,7 +77,11 @@ def download_video(url: str, output_dir: Path):
 
     def _download():
         try:
-            result["path"] = stream.download(output_dir)
+            safe_filename = safe_title.replace(" ", "_")
+            result["path"] = stream.download(
+                output_dir,
+                filename=safe_filename,
+            )
         except Exception as e:
             error["err"] = e
 
@@ -78,8 +95,8 @@ def download_video(url: str, output_dir: Path):
     if error:
         raise error["err"]
 
-    print("\n✔ Download completed")
-    print(f"✔ Saved to: {Path(result['path']).resolve()}")
+    print("\n[OK] Download completed")
+    print("Saved to:", Path(result["path"]).resolve())
 
 
 # ==========================================================
@@ -88,7 +105,7 @@ def download_video(url: str, output_dir: Path):
 def resolve_input(arg: str) -> List[str]:
     """
     If arg is a file path, treat it as JSON input.
-    Otherwise, treat arg as a single YouTube URL.
+    Otherwise, treat arg as a single YouTube video URL.
     """
     path = Path(arg)
 
@@ -102,12 +119,15 @@ def resolve_input(arg: str) -> List[str]:
 
         return data["videos"]
 
-    # Single URL input
+    # Guard against playlist URLs
+    if "playlist?list=" in arg:
+        raise ValueError("Playlist URLs are not supported. Provide a video URL.")
+
     return [arg]
 
 
 # ==========================================================
-# CLI
+# CLI ENTRYPOINT
 # ==========================================================
 @app.command()
 def main(
@@ -122,21 +142,17 @@ def main(
         help="Download directory",
     ),
 ):
-    """
-    Download YouTube videos from a JSON file or a direct video URL.
-    """
-
     print("\n=== ytcli started ===")
 
     try:
         videos = resolve_input(input_arg)
     except Exception as e:
-        print("\n✖ Invalid input")
+        print("\n[ERROR] Invalid input")
         print(e)
         raise typer.Exit(code=1)
 
-    print(f"▶ Videos to process: {len(videos)}")
-    print(f"▶ Output directory: {output.resolve()}")
+    print("> Videos to process:", len(videos))
+    print("> Output directory:", output.resolve())
 
     skipped = []
 
@@ -146,13 +162,13 @@ def main(
         try:
             download_video(url, output)
         except Exception as e:
-            print(f"\n⚠ Skipped: {e}")
+            print("\n[WARN] Skipped:", e)
             skipped.append(f"{url} :: {e}")
 
     # SUMMARY
     print("\n=== SUMMARY ===")
-    print(f"✔ Downloaded: {len(videos) - len(skipped)}")
-    print(f"✖ Skipped: {len(skipped)}")
+    print("[OK] Downloaded:", len(videos) - len(skipped))
+    print("[WARN] Skipped:", len(skipped))
 
     if skipped:
         skipped_file = output / "skipped.txt"
@@ -160,7 +176,7 @@ def main(
             for line in skipped:
                 f.write(line + "\n")
 
-        print(f"⚠ Skipped list saved to: {skipped_file.resolve()}")
+        print("Skipped list saved to:", skipped_file.resolve())
 
     print("\n=== ytcli finished ===")
 

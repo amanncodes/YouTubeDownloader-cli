@@ -3,19 +3,24 @@ import sys
 import threading
 from pathlib import Path
 from threading import Lock
+from typing import List
 
 import typer
 from pytubefix import YouTube
 
 app = typer.Typer(
-    help="ytcli – YouTube video downloader (single-video links only)"
+    help="YouTubeDownloader-cli – download YouTube videos via JSON file or direct URL"
 )
 
+# ==========================================================
 # GLOBALS
+# ==========================================================
 _progress_lock = Lock()
 
 
-# PROGRESS CALLBACK (SAFE & SIMPLE)
+# ==========================================================
+# PROGRESS CALLBACK
+# ==========================================================
 def progress_callback(stream, chunk, bytes_remaining):
     with _progress_lock:
         total = stream.filesize
@@ -32,19 +37,19 @@ def progress_callback(stream, chunk, bytes_remaining):
         sys.stdout.flush()
 
 
-# DOWNLOAD A SINGLE VIDEO
+# ==========================================================
+# DOWNLOAD SINGLE VIDEO
+# ==========================================================
 def download_video(url: str, output_dir: Path):
     print("\n▶ Initializing video")
 
     yt = YouTube(url, on_progress_callback=progress_callback)
 
-    # Fail fast on live / upcoming
     if yt.vid_info.get("videoDetails", {}).get("isLive"):
         raise RuntimeError("Live or upcoming video")
 
     print(f"▶ Title: {yt.title}")
 
-    # Only progressive streams (audio + video)
     stream = yt.streams.filter(
         progressive=True, file_extension="mp4"
     ).get_highest_resolution()
@@ -55,27 +60,60 @@ def download_video(url: str, output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     result = {}
+    error = {}
 
     def _download():
-        result["path"] = stream.download(output_dir)
+        try:
+            result["path"] = stream.download(output_dir)
+        except Exception as e:
+            error["err"] = e
 
     t = threading.Thread(target=_download, daemon=True)
     t.start()
-    t.join(timeout=90)
+    t.join(timeout=45)
 
     if t.is_alive():
-        raise TimeoutError("Download timed out")
+        raise TimeoutError("Download stalled (no data received)")
+
+    if error:
+        raise error["err"]
 
     print("\n✔ Download completed")
     print(f"✔ Saved to: {Path(result['path']).resolve()}")
 
 
+# ==========================================================
+# INPUT RESOLUTION
+# ==========================================================
+def resolve_input(arg: str) -> List[str]:
+    """
+    If arg is a file path, treat it as JSON input.
+    Otherwise, treat arg as a single YouTube URL.
+    """
+    path = Path(arg)
+
+    # JSON file input
+    if path.exists() and path.is_file():
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        if "videos" not in data or not isinstance(data["videos"], list):
+            raise ValueError("JSON file must contain a 'videos' list")
+
+        return data["videos"]
+
+    # Single URL input
+    return [arg]
+
+
+# ==========================================================
 # CLI
+# ==========================================================
 @app.command()
-def run(
-    input_file: Path = typer.Argument(
+def main(
+    input_arg: str = typer.Argument(
         ...,
-        help="JSON file containing YouTube video links",
+        help="Path to JSON file or a single YouTube video URL",
     ),
     output: Path = typer.Option(
         Path("downloads"),
@@ -85,22 +123,17 @@ def run(
     ),
 ):
     """
-    Download YouTube videos from a JSON file.
+    Download YouTube videos from a JSON file or a direct video URL.
     """
 
     print("\n=== ytcli started ===")
 
-    if not input_file.exists():
-        raise FileNotFoundError(f"Input file not found: {input_file}")
-
-    # Load JSON
-    with open(input_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    if "videos" not in data or not isinstance(data["videos"], list):
-        raise ValueError("JSON must contain a 'videos' list")
-
-    videos = data["videos"]
+    try:
+        videos = resolve_input(input_arg)
+    except Exception as e:
+        print("\n✖ Invalid input")
+        print(e)
+        raise typer.Exit(code=1)
 
     print(f"▶ Videos to process: {len(videos)}")
     print(f"▶ Output directory: {output.resolve()}")
@@ -116,7 +149,7 @@ def run(
             print(f"\n⚠ Skipped: {e}")
             skipped.append(f"{url} :: {e}")
 
-    # Summary
+    # SUMMARY
     print("\n=== SUMMARY ===")
     print(f"✔ Downloaded: {len(videos) - len(skipped)}")
     print(f"✖ Skipped: {len(skipped)}")
@@ -132,9 +165,5 @@ def run(
     print("\n=== ytcli finished ===")
 
 
-def main():
-    app()
-
-
 if __name__ == "__main__":
-    main()
+    app()
